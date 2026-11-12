@@ -21,16 +21,16 @@ O cabeçalho confirma que a criação de display recebe **dois argumentos** na v
 
 A prévia dentro do dock deve usar um widget Qt com janela nativa (`winId()` no Windows), criar um `gs_init_data` com o HWND e dimensões do widget, criar `obs_display_t`, e registrar um callback de desenho. O callback é executado no contexto gráfico do OBS. Ao desenhar uma cena específica, manter o source em estado *showing* enquanto a prévia estiver ativa e renderizá-lo com `obs_source_video_render()`; remover callback e destruir o display antes de destruir o widget.
 
-## Limitação arquitetural que precisa ser resolvida
+## Descoberta sobre dimensões independentes
 
-Na tag 30.0.2, o caminho de renderização de uma cena OBS tradicional usa as dimensões globais de vídeo da instância. Criar um `obs_scene_t` separado **não cria automaticamente um canvas com dimensões independentes**. Portanto, apenas desenhar essa cena dentro de um retângulo 9:16 não garante composição vertical real: a cena pode continuar tendo as dimensões horizontais do projeto.
+O código de `libobs/obs-scene.c` na tag 30.0.2 confirma que cenas suportam `custom_size`, `cx` e `cy` em suas configurações. `scene_load()` lê esses campos e `scene_getwidth()` / `scene_getheight()` retornam as dimensões personalizadas quando `custom_size` está ativo. O protótipo agora cria uma fonte privada do tipo `scene` com `custom_size=true`, `cx=1080`, `cy=1920`, chama `obs_source_load()` para aplicar a configuração e obtém o `obs_scene_t` com `obs_scene_from_source()`.
 
-Antes de implementar o editor interativo, o motor vertical precisa estabelecer coordenadas e dimensões de composição 1080×1920 independentes e uma forma segura de renderizar as fontes existentes nesse espaço. Não tratar uma prévia recortada/esticada de uma cena horizontal como canvas vertical concluído.
+Isso é a base correta para coordenadas independentes 9:16 e foi implementado na branch. Ainda precisa ser validado em runtime: a criação privada, a aplicação da configuração e o ciclo de vida da fonte devem ser testados no OBS 30.0.2 x64. Não equivale ainda a uma prévia renderizada.
 
 ## Próximos passos técnicos
 
 1. Construir um protótipo de display Qt/OBS e validar o ciclo de vida de `obs_display_t` em Windows.
-2. Definir e testar o motor de composição vertical independente (dimensões, coordenadas, recorte e transformações).
+2. Validar o motor de composição vertical independente baseado em cenas OBS com `custom_size` 1080×1920 (dimensões, coordenadas, recorte e transformações).
 3. Conectar seleção/arraste/redimensionamento ao modelo de transformação, sem modificar a cena horizontal original.
 4. Persistir o modelo vertical por coleção de cenas.
 5. Compilar e testar no OBS 30.0.2 x64 antes de publicar instalador.
