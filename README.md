@@ -7,14 +7,17 @@ Plugin nativo para OBS Studio 30.0.2, dedicado exclusivamente à criação e edi
 - Canvas vertical independente, inicialmente em 1080 × 1920.
 - Cenas verticais independentes das cenas horizontais.
 - Adição de fontes existentes do OBS às cenas verticais.
-- Organização básica de cenas e fontes.
+- Renomear cenas verticais.
+- Duplicar instâncias de fontes dentro da cena.
+- Mostrar/ocultar fontes e reorganizar camadas.
+- Remover fontes e cenas verticais.
 - Dock próprio integrado à interface do OBS.
 
 Este repositório é uma implementação independente. Não contém código proprietário do SE.Live.
 
 ## Estado atual
 
-A primeira etapa cria a estrutura do plugin, o dock do OBS e operações iniciais de gerenciamento de cenas/fontes. Ainda não representa uma versão final: pré-visualização renderizada, edição visual por arrastar, transformações avançadas, persistência e validação no SDK exato do OBS 30.0.2 precisam ser concluídas e testadas.
+A primeira etapa cria a estrutura do plugin, o dock do OBS e operações iniciais de gerenciamento de cenas/fontes, incluindo renomeação de cenas, duplicação de camadas, visibilidade e ordem das fontes. Ainda não representa uma versão final: pré-visualização renderizada, edição visual por arrastar, transformações avançadas, persistência e validação no SDK exato do OBS 30.0.2 precisam ser concluídas e testadas.
 
 ## Requisitos
 
