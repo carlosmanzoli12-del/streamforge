@@ -21,6 +21,7 @@ OBS_MODULE_USE_DEFAULT_LOCALE("streamforge-vertical", "en-US")
 
 namespace {
 struct VerticalScene {
+    obs_source_t *source = nullptr; // Owns the private scene source.
     obs_scene_t *scene = nullptr;
     QString name;
 };
@@ -94,13 +95,29 @@ void createVerticalScene()
 {
     const int number = static_cast<int>(verticalScenes.size()) + 1;
     const QString name = QString("Vertical %1").arg(number);
-    obs_scene_t *scene = obs_scene_create(name.toUtf8().constData());
-    if (!scene) {
+    obs_data_t *settings = obs_data_create();
+    obs_data_set_bool(settings, "custom_size", true);
+    obs_data_set_int(settings, "cx", 1080);
+    obs_data_set_int(settings, "cy", 1920);
+
+    obs_source_t *sceneSource =
+        obs_source_create_private("scene", name.toUtf8().constData(), settings);
+    obs_data_release(settings);
+    if (!sceneSource) {
         QMessageBox::warning(dock, "StreamForge Vertical", "Não foi possível criar a cena vertical.");
         return;
     }
 
-    verticalScenes.push_back({scene, name});
+    // Scene custom dimensions are restored by the scene source load callback.
+    obs_source_load(sceneSource);
+    obs_scene_t *scene = obs_scene_from_source(sceneSource);
+    if (!scene) {
+        obs_source_release(sceneSource);
+        QMessageBox::warning(dock, "StreamForge Vertical", "O OBS não retornou uma cena válida.");
+        return;
+    }
+
+    verticalScenes.push_back({sceneSource, scene, name});
     scenePicker->addItem(name);
     scenePicker->setCurrentIndex(scenePicker->count() - 1);
     refreshSceneSourceList();
@@ -112,13 +129,9 @@ void deleteVerticalScene()
     if (index < 0 || static_cast<size_t>(index) >= verticalScenes.size())
         return;
 
-    obs_scene_t *scene = verticalScenes[static_cast<size_t>(index)].scene;
-    if (scene) {
-        obs_source_t *sceneSource = obs_scene_get_source(scene);
-        if (sceneSource)
-            obs_source_remove(sceneSource);
-        obs_scene_release(scene);
-    }
+    obs_source_t *sceneSource = verticalScenes[static_cast<size_t>(index)].source;
+    if (sceneSource)
+        obs_source_release(sceneSource);
     verticalScenes.erase(verticalScenes.begin() + index);
     scenePicker->removeItem(index);
     refreshSceneSourceList();
@@ -370,8 +383,8 @@ void obs_module_unload(void)
     obs_frontend_remove_event_callback(frontendEventCallback, nullptr);
     obs_frontend_remove_dock("streamforge.vertical");
     for (auto &entry : verticalScenes) {
-        if (entry.scene)
-            obs_scene_release(entry.scene);
+        if (entry.source)
+            obs_source_release(entry.source);
     }
     verticalScenes.clear();
     dock = nullptr;
