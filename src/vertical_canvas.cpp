@@ -120,6 +120,34 @@ void deleteVerticalScene()
     refreshSceneSourceList();
 }
 
+struct RemoveItemContext {
+    int targetIndex = -1;
+    int currentIndex = 0;
+};
+
+bool removeSceneItemAtIndex(obs_scene_t *, obs_sceneitem_t *item, void *param)
+{
+    auto *context = static_cast<RemoveItemContext *>(param);
+    if (context->currentIndex++ == context->targetIndex) {
+        obs_sceneitem_remove(item);
+        return false;
+    }
+    return true;
+}
+
+void removeSelectedSource()
+{
+    obs_scene_t *scene = currentScene();
+    const int row = sceneSources ? sceneSources->currentRow() : -1;
+    if (!scene || row < 0)
+        return;
+
+    RemoveItemContext context;
+    context.targetIndex = row;
+    obs_scene_enum_items(scene, removeSceneItemAtIndex, &context);
+    refreshSceneSourceList();
+}
+
 void addSelectedSource()
 {
     obs_scene_t *scene = currentScene();
@@ -190,6 +218,8 @@ void buildDock()
     root->addWidget(new QLabel("Fontes na cena"));
     sceneSources = new QListWidget();
     root->addWidget(sceneSources, 1);
+    auto *removeSource = new QPushButton("Remover fonte selecionada");
+    root->addWidget(removeSource);
 
     auto *note = new QLabel("As cenas verticais são independentes das cenas horizontais. A edição visual e a pré-visualização vertical serão adicionadas nas próximas etapas.");
     note->setWordWrap(true);
@@ -199,6 +229,7 @@ void buildDock()
     QObject::connect(newScene, &QPushButton::clicked, createVerticalScene);
     QObject::connect(removeScene, &QPushButton::clicked, deleteVerticalScene);
     QObject::connect(addSource, &QPushButton::clicked, addSelectedSource);
+    QObject::connect(removeSource, &QPushButton::clicked, removeSelectedSource);
     QObject::connect(scenePicker, &QComboBox::currentIndexChanged, refreshSceneSourceList);
 
     refreshSourcePicker();
