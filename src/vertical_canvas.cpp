@@ -146,10 +146,18 @@ private:
             const int offsetX = static_cast<int>((cx - viewWidth) / 2);
             const int offsetY = static_cast<int>((cy - viewHeight) / 2);
 
-            gs_set_viewport(offsetX, offsetY, static_cast<int>(viewWidth), static_cast<int>(viewHeight));
+            // A display callback shares the OBS graphics context with other
+            // displays. Preserve the caller's viewport/projection state so
+            // this secondary canvas cannot corrupt the main OBS preview.
+            gs_viewport_push();
+            gs_projection_push();
             gs_ortho(0.0f, static_cast<float>(sourceWidth), 0.0f,
                      static_cast<float>(sourceHeight), -100.0f, 100.0f);
+            gs_set_viewport(offsetX, offsetY, static_cast<int>(viewWidth),
+                            static_cast<int>(viewHeight));
             obs_source_video_render(source);
+            gs_projection_pop();
+            gs_viewport_pop();
         }
         obs_source_release(source);
     }
