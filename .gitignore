@@ -1,0 +1,13 @@
+/build/
+/out/
+/cmake-build-*/
+*.user
+*.suo
+*.pdb
+*.ilk
+*.obj
+*.dll
+*.lib
+*.exp
+*.log
+.DS_Store
