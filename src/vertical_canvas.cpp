@@ -15,6 +15,7 @@
 #include <QResizeEvent>
 #include <QShowEvent>
 #include <QHideEvent>
+#include <QMouseEvent>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -44,6 +45,7 @@ VerticalPreview *verticalPreview = nullptr;
 std::vector<VerticalScene> verticalScenes;
 
 void refreshSourcePicker();
+void selectSceneItemInList(int64_t itemId);
 
 class VerticalPreview final : public QWidget {
 public:
@@ -52,6 +54,8 @@ public:
         setAttribute(Qt::WA_NativeWindow);
         setAttribute(Qt::WA_PaintOnScreen);
         setMinimumSize(180, 320);
+        setMouseTracking(true);
+        setCursor(Qt::CrossCursor);
         setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
         setStyleSheet("background: #171a20; border: 1px solid #343b46;");
     }
@@ -67,6 +71,8 @@ public:
         std::lock_guard<std::mutex> lock(sourceMutex);
         if (sceneSource == source)
             return;
+        selectedItemId = -1;
+        dragging = false;
         if (sceneSource) {
             if (sourceShowing)
                 obs_source_dec_showing(sceneSource);
@@ -80,6 +86,144 @@ public:
 
 protected:
     QPaintEngine *paintEngine() const override { return nullptr; }
+
+    void mousePressEvent(QMouseEvent *event) override
+    {
+        if (event->button() != Qt::LeftButton) {
+            QWidget::mousePressEvent(event);
+            return;
+        }
+
+        obs_source_t *source = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(sourceMutex);
+            source = sceneSource ? obs_source_get_ref(sceneSource) : nullptr;
+        }
+        if (!source)
+            return;
+
+        const uint32_t canvasWidth = obs_source_get_width(source);
+        const uint32_t canvasHeight = obs_source_get_height(source);
+        obs_source_release(source);
+        if (!canvasWidth || !canvasHeight)
+            return;
+
+        const float fit = std::min(static_cast<float>(width()) / canvasWidth,
+                                   static_cast<float>(height()) / canvasHeight);
+        const float viewWidth = canvasWidth * fit;
+        const float viewHeight = canvasHeight * fit;
+        const float offsetX = (width() - viewWidth) * 0.5f;
+        const float offsetY = (height() - viewHeight) * 0.5f;
+        const QPointF mouse = event->position();
+        if (mouse.x() < offsetX || mouse.x() > offsetX + viewWidth ||
+            mouse.y() < offsetY || mouse.y() > offsetY + viewHeight)
+            return;
+
+        const float canvasX = (mouse.x() - offsetX) / fit;
+        const float canvasY = (mouse.y() - offsetY) / fit;
+        obs_scene_t *scene = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(sourceMutex);
+            if (sceneSource)
+                scene = obs_scene_from_source(sceneSource);
+        }
+
+        struct HitContext {
+            float x;
+            float y;
+            int64_t hitId = -1;
+            int row = -1;
+            int index = 0;
+        } hit{canvasX, canvasY};
+
+        if (scene) {
+            obs_scene_enum_items(scene, [](obs_scene_t *, obs_sceneitem_t *item, void *param) {
+                auto *ctx = static_cast<HitContext *>(param);
+                const int row = ctx->index++;
+                if (!obs_sceneitem_visible(item))
+                    return true;
+
+                obs_source_t *itemSource = obs_sceneitem_get_source(item);
+                if (!itemSource)
+                    return true;
+                vec2 position{}, boxScale{};
+                obs_sceneitem_get_pos(item, &position);
+                obs_sceneitem_get_box_scale(item, &boxScale);
+                const uint32_t align = obs_sceneitem_get_alignment(item);
+                const float left = position.x - ((align & OBS_ALIGN_RIGHT) ? boxScale.x :
+                                    ((align & OBS_ALIGN_LEFT) ? 0.0f : boxScale.x * 0.5f));
+                const float top = position.y - ((align & OBS_ALIGN_BOTTOM) ? boxScale.y :
+                                   ((align & OBS_ALIGN_TOP) ? 0.0f : boxScale.y * 0.5f));
+                if (ctx->x >= left && ctx->x <= left + boxScale.x &&
+                    ctx->y >= top && ctx->y <= top + boxScale.y) {
+                    ctx->hitId = obs_sceneitem_get_id(item);
+                    ctx->row = row;
+                }
+                return true;
+            }, &hit);
+        }
+
+        selectedItemId = hit.hitId;
+        selectSceneItemInList(selectedItemId);
+        dragging = selectedItemId >= 0;
+        if (dragging) {
+            dragStart = QPointF(canvasX, canvasY);
+            obs_sceneitem_t *item = obs_scene_find_sceneitem_by_id(scene, selectedItemId);
+            if (item)
+                obs_sceneitem_get_pos(item, &itemStartPosition);
+        }
+        update();
+        event->accept();
+    }
+
+    void mouseMoveEvent(QMouseEvent *event) override
+    {
+        if (!dragging || !(event->buttons() & Qt::LeftButton)) {
+            QWidget::mouseMoveEvent(event);
+            return;
+        }
+
+        obs_scene_t *scene = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(sourceMutex);
+            if (sceneSource)
+                scene = obs_scene_from_source(sceneSource);
+        }
+        if (!scene)
+            return;
+
+        obs_sceneitem_t *item = obs_scene_find_sceneitem_by_id(scene, selectedItemId);
+        if (!item)
+            return;
+
+        obs_source_t *source = obs_scene_get_source(scene);
+        if (!source)
+            return;
+        const float fit = std::min(static_cast<float>(width()) / 1080.0f,
+                                   static_cast<float>(height()) / 1920.0f);
+        obs_source_release(source);
+        if (fit <= 0.0f)
+            return;
+
+        const QPointF mouse = event->position();
+        const float canvasX = (mouse.x() - (width() - 1080.0f * fit) * 0.5f) / fit;
+        const float canvasY = (mouse.y() - (height() - 1920.0f * fit) * 0.5f) / fit;
+        vec2 next = itemStartPosition;
+        next.x += canvasX - static_cast<float>(dragStart.x());
+        next.y += canvasY - static_cast<float>(dragStart.y());
+        obs_sceneitem_set_pos(item, &next);
+        event->accept();
+    }
+
+    void mouseReleaseEvent(QMouseEvent *event) override
+    {
+        if (event->button() == Qt::LeftButton) {
+            dragging = false;
+            event->accept();
+            return;
+        }
+        QWidget::mouseReleaseEvent(event);
+    }
 
     void showEvent(QShowEvent *event) override
     {
@@ -120,6 +264,10 @@ private:
     obs_source_t *sceneSource = nullptr;
     bool sourceShowing = false;
     std::mutex sourceMutex;
+    int64_t selectedItemId = -1;
+    bool dragging = false;
+    QPointF dragStart;
+    vec2 itemStartPosition{};
 
     static void drawPreview(void *param, uint32_t cx, uint32_t cy)
     {
@@ -231,6 +379,32 @@ bool enumSourceNames(void *data, obs_source_t *source)
     if ((flags & OBS_SOURCE_VIDEO) != 0)
         combo->addItem(QString::fromUtf8(obs_source_get_name(source)));
     return true;
+}
+
+void selectSceneItemInList(int64_t itemId)
+{
+    if (!sceneSources)
+        return;
+    int selectedRow = -1;
+    struct SelectContext {
+        int64_t target;
+        int row = 0;
+        int found = -1;
+    } context{itemId};
+    obs_scene_t *scene = currentScene();
+    if (scene && itemId >= 0) {
+        obs_scene_enum_items(scene, [](obs_scene_t *, obs_sceneitem_t *item, void *param) {
+            auto *ctx = static_cast<SelectContext *>(param);
+            if (obs_sceneitem_get_id(item) == ctx->target) {
+                ctx->found = ctx->row;
+                return false;
+            }
+            ++ctx->row;
+            return true;
+        }, &context);
+        selectedRow = context.found;
+    }
+    sceneSources->setCurrentRow(selectedRow);
 }
 
 void refreshSourcePicker()
@@ -531,7 +705,7 @@ void buildDock()
     auto *removeSource = new QPushButton("Remover fonte selecionada");
     root->addWidget(removeSource);
 
-    auto *note = new QLabel("Prévia renderizada das cenas verticais 9:16. A edição direta por seleção e arraste será adicionada na próxima etapa.");
+    auto *note = new QLabel("Clique em uma fonte na prévia para selecioná-la e arraste para reposicionar. O movimento altera somente a cena vertical.");
     note->setWordWrap(true);
     note->setStyleSheet("color: #9aa4b2; padding-top: 8px;");
     root->addWidget(note);
