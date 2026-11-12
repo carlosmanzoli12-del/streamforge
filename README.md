@@ -7,6 +7,7 @@ Plugin nativo para OBS Studio 30.0.2, dedicado exclusivamente à criação e edi
 - Canvas vertical independente, inicialmente em 1080 × 1920.
 - Cenas verticais independentes das cenas horizontais.
 - Adição de fontes existentes do OBS às cenas verticais.
+- Seleção de fonte clicando diretamente na prévia e reposicionamento por arraste.
 - Renomear cenas verticais.
 - Duplicar instâncias de fontes dentro da cena.
 - Mostrar/ocultar fontes e reorganizar camadas.
@@ -17,7 +18,7 @@ Este repositório é uma implementação independente. Não contém código prop
 
 ## Estado atual
 
-A base inclui cenas privadas com dimensões 1080 × 1920, dock nativo, gerenciamento de camadas e uma implementação inicial de pré-visualização renderizada via libobs. O callback da prévia preserva as pilhas de viewport e projeção do contexto gráfico compartilhado. A prévia ainda precisa de validação em execução no OBS 30.0.2 e não inclui seleção/arraste interativo. Ainda não representa uma versão final: edição visual direta, transformações avançadas, persistência e validação no SDK exato do OBS 30.0.2 precisam ser concluídas e testadas.
+A base inclui cenas privadas com dimensões 1080 × 1920, dock nativo, gerenciamento de camadas e uma implementação inicial de pré-visualização renderizada via libobs. Já há seleção por clique e reposicionamento por arraste no canvas vertical, com atualização da posição da camada somente na cena vertical. O hit-test inicial usa caixas alinhadas aos eixos; alças de redimensionamento, rotação, recorte, seleção múltipla e guias ainda não foram implementados. A prévia e a interação precisam de validação em execução no OBS 30.0.2. Ainda não representa uma versão final: transformações avançadas, persistência e validação no SDK exato do OBS 30.0.2 precisam ser concluídas e testadas.
 
 ## Requisitos
 
