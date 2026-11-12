@@ -14,7 +14,9 @@
 - [ ] Testar carregamento/descarregamento no OBS 30.0.2 para Windows.
 
 ## Etapa 1 — Canvas real
-- [ ] Renderizar a cena vertical em uma superfície de pré-visualização 9:16 (API de display confirmada; widget e ciclo de vida ainda pendentes).
+- [x] Implementar widget de pré-visualização 9:16 com obs_display e renderização da cena vertical.
+- [x] Gerenciar estado showing da fonte e ciclo de vida do display ao abrir/fechar o dock.
+- [ ] Validar renderização e ciclo de vida no OBS 30.0.2 x64 em Windows.
 - [ ] Implementar seleção de item diretamente na prévia.
 - [ ] Arrastar, redimensionar e girar fontes com alças.
 - [ ] Zoom, pan, grade, guias e snapping.
@@ -38,7 +40,7 @@
 - [ ] Desfazer/refazer e atalhos.
 
 ## Etapa 4 — Qualidade e entrega
-- [ ] Testes de compatibilidade no OBS 30.0.2 x64.
+- [ ] Testes de compatibilidade no OBS 30.0.2 x64 (incluindo preview 9:16).
 - [ ] Testes de fontes comuns, mídia, captura de jogo e navegador.
 - [ ] Testes de DPI, múltiplos monitores e redimensionamento do dock.
 - [ ] Pacote de instalação e instruções de remoção.
