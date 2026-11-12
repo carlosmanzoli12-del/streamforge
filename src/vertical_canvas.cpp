@@ -68,11 +68,13 @@ public:
         if (sceneSource == source)
             return;
         if (sceneSource) {
-            obs_source_dec_showing(sceneSource);
+            if (sourceShowing)
+                obs_source_dec_showing(sceneSource);
             obs_source_release(sceneSource);
         }
         sceneSource = source ? obs_source_get_ref(source) : nullptr;
-        if (sceneSource)
+        sourceShowing = sceneSource && isVisible();
+        if (sourceShowing)
             obs_source_inc_showing(sceneSource);
     }
 
@@ -82,12 +84,26 @@ protected:
     void showEvent(QShowEvent *event) override
     {
         QWidget::showEvent(event);
+        {
+            std::lock_guard<std::mutex> lock(sourceMutex);
+            if (sceneSource && !sourceShowing) {
+                obs_source_inc_showing(sceneSource);
+                sourceShowing = true;
+            }
+        }
         createDisplay();
     }
 
     void hideEvent(QHideEvent *event) override
     {
         destroyDisplay();
+        {
+            std::lock_guard<std::mutex> lock(sourceMutex);
+            if (sceneSource && sourceShowing) {
+                obs_source_dec_showing(sceneSource);
+                sourceShowing = false;
+            }
+        }
         QWidget::hideEvent(event);
     }
 
@@ -102,6 +118,7 @@ protected:
 private:
     obs_display_t *display = nullptr;
     obs_source_t *sceneSource = nullptr;
+    bool sourceShowing = false;
     std::mutex sourceMutex;
 
     static void drawPreview(void *param, uint32_t cx, uint32_t cy)
@@ -174,9 +191,11 @@ private:
     {
         std::lock_guard<std::mutex> lock(sourceMutex);
         if (sceneSource) {
-            obs_source_dec_showing(sceneSource);
+            if (sourceShowing)
+                obs_source_dec_showing(sceneSource);
             obs_source_release(sceneSource);
             sceneSource = nullptr;
+            sourceShowing = false;
         }
     }
 };
@@ -500,7 +519,7 @@ void buildDock()
     auto *removeSource = new QPushButton("Remover fonte selecionada");
     root->addWidget(removeSource);
 
-    auto *note = new QLabel("Gerencie cenas e camadas verticais de forma independente. A pré-visualização renderizada e a edição por arraste continuam no roadmap.");
+    auto *note = new QLabel("Prévia renderizada das cenas verticais 9:16. A edição direta por seleção e arraste será adicionada na próxima etapa.");
     note->setWordWrap(true);
     note->setStyleSheet("color: #9aa4b2; padding-top: 8px;");
     root->addWidget(note);
