@@ -196,12 +196,8 @@ protected:
         if (!item)
             return;
 
-        obs_source_t *source = obs_scene_get_source(scene);
-        if (!source)
-            return;
         const float fit = std::min(static_cast<float>(width()) / 1080.0f,
                                    static_cast<float>(height()) / 1920.0f);
-        obs_source_release(source);
         if (fit <= 0.0f)
             return;
 
