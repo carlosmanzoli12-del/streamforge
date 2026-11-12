@@ -47,11 +47,10 @@ O projeto usa CPack com NSIS. Para gerar o instalador `.exe`, são necessários:
 Exemplo no PowerShell, com o ambiente de dependências do OBS configurado:
 
 ```powershell
-cmake -S . -B build -A x64 -DSTREAMFORGE_BUILD_OBS_PLUGIN=ON -DCMAKE_PREFIX_PATH="C:/obs-sdk"
-cmake --build build --config Release
-cpack --config build/CPackConfig.cmake -C Release -G NSIS
+$env:OBS_SDK_ROOT = "C:/obs-sdk"
+.\scripts\build-installer.ps1 -Configuration Release
 ```
 
-O instalador coloca o módulo em `obs-plugins/64bit` dentro da pasta de instalação do OBS escolhida no assistente. Feche o OBS antes de instalar ou atualizar o plugin e abra-o novamente após a instalação.
+O script verifica CMake, CPack e NSIS, configura o projeto, compila em x64 e gera o instalador. O instalador coloca o módulo em `obs-plugins/64bit`; confirme o diretório de destino no assistente. Feche o OBS antes de instalar ou atualizar o plugin e abra-o novamente após a instalação.
 
 **Nota:** o instalador é gerado a partir do binário compilado. Este repositório ainda não contém um instalador pronto; a compilação e a instalação precisam ser validadas em Windows com o SDK correspondente ao OBS 30.0.2.
