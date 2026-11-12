@@ -298,11 +298,15 @@ void deleteVerticalScene()
         return;
 
     obs_source_t *sceneSource = verticalScenes[static_cast<size_t>(index)].source;
-    if (sceneSource)
-        obs_source_release(sceneSource);
+
+    // Detach the preview first: it owns an additional reference and may be
+    // showing this source while the scene entry is being removed.
     if (verticalPreview && index == scenePicker->currentIndex())
         verticalPreview->setSceneSource(nullptr);
+
     verticalScenes.erase(verticalScenes.begin() + index);
+    if (sceneSource)
+        obs_source_release(sceneSource);
     scenePicker->removeItem(index);
     refreshSceneSourceList();
 }
