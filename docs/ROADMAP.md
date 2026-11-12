@@ -3,7 +3,8 @@
 ## Etapa 0 — Base nativa
 - [x] Repositório dedicado e build CMake inicial.
 - [x] Dock nativo registrado no OBS.
-- [x] Criar/excluir cenas verticais em memória.
+- [x] Criar/excluir cenas verticais privadas em memória.
+- [x] Criar cenas com dimensões personalizadas 1080 × 1920 usando a configuração de cena do OBS 30.0.2.
 - [x] Listar fontes de vídeo existentes no OBS.
 - [x] Inserir uma fonte existente em uma cena vertical e aplicar ajuste inicial para 1080 × 1920.
 - [x] Renomear cenas verticais.
@@ -13,7 +14,7 @@
 - [ ] Testar carregamento/descarregamento no OBS 30.0.2 para Windows.
 
 ## Etapa 1 — Canvas real
-- [ ] Renderizar a cena vertical em uma superfície de pré-visualização 9:16.
+- [ ] Renderizar a cena vertical em uma superfície de pré-visualização 9:16 (API de display confirmada; widget e ciclo de vida ainda pendentes).
 - [ ] Implementar seleção de item diretamente na prévia.
 - [ ] Arrastar, redimensionar e girar fontes com alças.
 - [ ] Zoom, pan, grade, guias e snapping.
