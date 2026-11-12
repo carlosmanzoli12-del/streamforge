@@ -6,6 +6,9 @@
 - [x] Criar/excluir cenas verticais em memória.
 - [x] Listar fontes de vídeo existentes no OBS.
 - [x] Inserir uma fonte existente em uma cena vertical e aplicar ajuste inicial para 1080 × 1920.
+- [x] Renomear cenas verticais.
+- [x] Duplicar uma camada preservando posição, escala, rotação e visibilidade.
+- [x] Alternar visibilidade e alterar ordem das camadas.
 - [ ] Validar compilação no SDK/dependências do OBS 30.0.2.
 - [ ] Testar carregamento/descarregamento no OBS 30.0.2 para Windows.
 
@@ -17,10 +20,12 @@
 - [ ] Ajustar ao canvas, preencher, centralizar e alinhar.
 
 ## Etapa 2 — Gerenciamento de composição
-- [ ] Remover e reordenar fontes.
-- [ ] Duplicar fontes e cenas.
-- [ ] Renomear cenas.
-- [ ] Visibilidade e bloqueio por fonte.
+- [x] Remover e reordenar fontes.
+- [x] Duplicar uma instância de fonte dentro da cena.
+- [x] Renomear cenas.
+- [ ] Duplicar cenas completas.
+- [x] Visibilidade por fonte.
+- [ ] Bloqueio por fonte.
 - [ ] Recorte, limites, rotação e transformações avançadas.
 - [ ] Seleção múltipla.
 
