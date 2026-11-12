@@ -21,6 +21,7 @@
 - [x] Arrastar para reposicionar a camada na cena vertical.
 - [ ] Desenhar contorno e alças de seleção no canvas.
 - [ ] Redimensionar e girar fontes com alças.
+- [x] Controles no dock para escala incremental, rotação em passos de 5° e centralização.
 - [ ] Zoom, pan, grade, guias e snapping.
 - [ ] Ajustar ao canvas, preencher, centralizar e alinhar.
 
@@ -31,7 +32,8 @@
 - [ ] Duplicar cenas completas.
 - [x] Visibilidade por fonte.
 - [ ] Bloqueio por fonte.
-- [ ] Recorte, limites, rotação e transformações avançadas.
+- [ ] Recorte, limites e transformações avançadas.
+- [x] Rotação básica por controle no dock.
 - [ ] Seleção múltipla.
 
 ## Etapa 3 — Persistência e integração
