@@ -564,6 +564,50 @@ void duplicateSelectedSource()
         sceneSources->setCurrentRow(sceneSources->count() - 1);
 }
 
+void scaleSelectedSource(float factor)
+{
+    obs_scene_t *scene = currentScene();
+    const int row = sceneSources ? sceneSources->currentRow() : -1;
+    obs_sceneitem_t *item = scene ? sceneItemAt(scene, row) : nullptr;
+    if (!item || factor <= 0.0f)
+        return;
+    vec2 scale{};
+    obs_sceneitem_get_scale(item, &scale);
+    scale.x *= factor;
+    scale.y *= factor;
+    obs_sceneitem_set_scale(item, &scale);
+}
+
+void rotateSelectedSource(float degrees)
+{
+    obs_scene_t *scene = currentScene();
+    const int row = sceneSources ? sceneSources->currentRow() : -1;
+    obs_sceneitem_t *item = scene ? sceneItemAt(scene, row) : nullptr;
+    if (!item)
+        return;
+    obs_sceneitem_set_rot(item, obs_sceneitem_get_rot(item) + degrees);
+}
+
+void centerSelectedSource()
+{
+    obs_scene_t *scene = currentScene();
+    const int row = sceneSources ? sceneSources->currentRow() : -1;
+    obs_sceneitem_t *item = scene ? sceneItemAt(scene, row) : nullptr;
+    if (!item)
+        return;
+    obs_source_t *source = obs_sceneitem_get_source(item);
+    if (!source)
+        return;
+    vec2 scale{};
+    obs_sceneitem_get_scale(item, &scale);
+    const float width = static_cast<float>(obs_source_get_width(source)) * scale.x;
+    const float height = static_cast<float>(obs_source_get_height(source)) * scale.y;
+    obs_source_release(source);
+    vec2 position{(1080.0f - width) * 0.5f, (1920.0f - height) * 0.5f};
+    obs_sceneitem_set_alignment(item, 0);
+    obs_sceneitem_set_pos(item, &position);
+}
+
 void toggleSelectedSourceVisibility()
 {
     obs_scene_t *scene = currentScene();
@@ -698,6 +742,19 @@ void buildDock()
     orderActions->addWidget(moveDown);
     root->addLayout(orderActions);
 
+    auto *transformActions = new QHBoxLayout();
+    auto *scaleUp = new QPushButton("Aumentar");
+    auto *scaleDown = new QPushButton("Diminuir");
+    auto *rotateLeft = new QPushButton("Girar -5°");
+    auto *rotateRight = new QPushButton("Girar +5°");
+    transformActions->addWidget(scaleUp);
+    transformActions->addWidget(scaleDown);
+    transformActions->addWidget(rotateLeft);
+    transformActions->addWidget(rotateRight);
+    root->addLayout(transformActions);
+    auto *centerSource = new QPushButton("Centralizar fonte selecionada");
+    root->addWidget(centerSource);
+
     auto *removeSource = new QPushButton("Remover fonte selecionada");
     root->addWidget(removeSource);
 
@@ -714,6 +771,11 @@ void buildDock()
     QObject::connect(toggleVisibility, &QPushButton::clicked, toggleSelectedSourceVisibility);
     QObject::connect(moveUp, &QPushButton::clicked, [] { moveSelectedSource(-1); });
     QObject::connect(moveDown, &QPushButton::clicked, [] { moveSelectedSource(1); });
+    QObject::connect(scaleUp, &QPushButton::clicked, [] { scaleSelectedSource(1.1f); });
+    QObject::connect(scaleDown, &QPushButton::clicked, [] { scaleSelectedSource(0.9f); });
+    QObject::connect(rotateLeft, &QPushButton::clicked, [] { rotateSelectedSource(-5.0f); });
+    QObject::connect(rotateRight, &QPushButton::clicked, [] { rotateSelectedSource(5.0f); });
+    QObject::connect(centerSource, &QPushButton::clicked, centerSelectedSource);
     QObject::connect(removeSource, &QPushButton::clicked, removeSelectedSource);
     QObject::connect(scenePicker, qOverload<int>(&QComboBox::currentIndexChanged), [] {
         refreshSceneSourceList();
