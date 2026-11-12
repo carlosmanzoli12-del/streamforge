@@ -48,3 +48,6 @@ Isso é a base implementada para coordenadas independentes 9:16. A criação pri
 ## Edição direta inicial no canvas
 
 A branch também implementa interação de mouse no widget: clique para selecionar uma camada por hit-test da caixa transformada e arraste para atualizar sua posição por `obs_sceneitem_set_pos()`. A seleção é refletida na lista de camadas. O hit-test inicial usa caixas alinhadas aos eixos e não representa ainda a geometria exata de itens rotacionados ou com recortes complexos; essa limitação deve ser resolvida antes de declarar a edição visual completa. O comportamento ainda não foi compilado nem validado em runtime.
+
+
+A interface do dock também fornece ações básicas sobre a camada selecionada: escala incremental de 10%, rotação de ±5° e centralização no canvas. São comandos de transformação auxiliares, não substituem alças visuais de redimensionamento/rotação nem edição de recorte.
