@@ -28,7 +28,16 @@ QComboBox *scenePicker = nullptr;
 QComboBox *sourcePicker = nullptr;
 QListWidget *sceneSources = nullptr;
 QLabel *canvasInfo = nullptr;
-std::vector<VerticalScene> verticalScenes;\n\nvoid frontendEventCallback(obs_frontend_event event, void *)\n{\n    if (event == OBS_FRONTEND_EVENT_SCENE_COLLECTION_CHANGED ||\n        event == OBS_FRONTEND_EVENT_SCENE_CHANGED)\n        refreshSourcePicker();\n}
+std::vector<VerticalScene> verticalScenes;
+
+void refreshSourcePicker();
+
+void frontendEventCallback(obs_frontend_event event, void *)
+{
+    if (event == OBS_FRONTEND_EVENT_SCENE_COLLECTION_CHANGED ||
+        event == OBS_FRONTEND_EVENT_SCENE_CHANGED)
+        refreshSourcePicker();
+}
 
 obs_scene_t *currentScene()
 {
@@ -99,7 +108,13 @@ void deleteVerticalScene()
     if (index < 0 || static_cast<size_t>(index) >= verticalScenes.size())
         return;
 
-    obs_scene_t *scene = verticalScenes[static_cast<size_t>(index)].scene;\n    if (scene) {\n        obs_source_t *sceneSource = obs_scene_get_source(scene);\n        if (sceneSource)\n            obs_source_remove(sceneSource);\n        obs_scene_release(scene);\n    }
+    obs_scene_t *scene = verticalScenes[static_cast<size_t>(index)].scene;
+    if (scene) {
+        obs_source_t *sceneSource = obs_scene_get_source(scene);
+        if (sceneSource)
+            obs_source_remove(sceneSource);
+        obs_scene_release(scene);
+    }
     verticalScenes.erase(verticalScenes.begin() + index);
     scenePicker->removeItem(index);
     refreshSceneSourceList();
@@ -209,7 +224,8 @@ bool obs_module_load(void)
 
 void obs_module_unload(void)
 {
-    obs_frontend_remove_event_callback(frontendEventCallback, nullptr);\n    obs_frontend_remove_dock("streamforge.vertical");
+    obs_frontend_remove_event_callback(frontendEventCallback, nullptr);
+    obs_frontend_remove_dock("streamforge.vertical");
     for (auto &entry : verticalScenes) {
         if (entry.scene)
             obs_scene_release(entry.scene);
