@@ -34,3 +34,24 @@ cmake --build build --config Release
 ```
 
 Os nomes dos pacotes CMake e caminhos variam conforme o pacote de desenvolvimento utilizado. A compilação só será considerada validada após build e teste de carregamento no OBS 30.0.2.
+
+
+## Gerar o instalador do Windows
+
+O projeto usa CPack com NSIS. Para gerar o instalador `.exe`, são necessários:
+- Visual Studio 2022 (C++ x64);
+- CMake 3.24 ou superior;
+- NSIS instalado e disponível no PATH;
+- SDK/dependências de desenvolvimento do OBS 30.0.2, incluindo libobs, obs-frontend-api e Qt 6 compatível.
+
+Exemplo no PowerShell, com o ambiente de dependências do OBS configurado:
+
+```powershell
+cmake -S . -B build -A x64 -DSTREAMFORGE_BUILD_OBS_PLUGIN=ON -DCMAKE_PREFIX_PATH="C:/obs-sdk"
+cmake --build build --config Release
+cpack --config build/CPackConfig.cmake -C Release -G NSIS
+```
+
+O instalador coloca o módulo em `obs-plugins/64bit` dentro da pasta de instalação do OBS escolhida no assistente. Feche o OBS antes de instalar ou atualizar o plugin e abra-o novamente após a instalação.
+
+**Nota:** o instalador é gerado a partir do binário compilado. Este repositório ainda não contém um instalador pronto; a compilação e a instalação precisam ser validadas em Windows com o SDK correspondente ao OBS 30.0.2.
