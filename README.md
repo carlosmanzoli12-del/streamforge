@@ -17,7 +17,7 @@ Este repositório é uma implementação independente. Não contém código prop
 
 ## Estado atual
 
-A primeira etapa cria a estrutura do plugin, o dock do OBS e operações iniciais de gerenciamento de cenas/fontes, incluindo renomeação de cenas, duplicação de camadas, visibilidade e ordem das fontes. Ainda não representa uma versão final: pré-visualização renderizada, edição visual por arrastar, transformações avançadas, persistência e validação no SDK exato do OBS 30.0.2 precisam ser concluídas e testadas.
+A base inclui cenas privadas com dimensões 1080 × 1920, dock nativo, gerenciamento de camadas e um primeiro widget de pré-visualização renderizada via libobs. A prévia ainda precisa de validação em execução no OBS 30.0.2 e não inclui seleção/arraste interativo. Ainda não representa uma versão final: pré-visualização renderizada, edição visual por arrastar, transformações avançadas, persistência e validação no SDK exato do OBS 30.0.2 precisam ser concluídas e testadas.
 
 ## Requisitos
 
