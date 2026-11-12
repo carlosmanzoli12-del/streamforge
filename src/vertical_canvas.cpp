@@ -233,11 +233,7 @@ void buildDock()
     QObject::connect(scenePicker, &QComboBox::currentIndexChanged, refreshSceneSourceList);
 
     refreshSourcePicker();
-    obs_frontend_add_event_callback([](obs_frontend_event event, void *) {
-        if (event == OBS_FRONTEND_EVENT_SCENE_COLLECTION_CHANGED ||
-            event == OBS_FRONTEND_EVENT_SCENE_CHANGED)
-            refreshSourcePicker();
-    }, nullptr);
+    obs_frontend_add_event_callback(frontendEventCallback, nullptr);
 }
 } // namespace
 
