@@ -12,9 +12,17 @@
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QWidget>
+#include <QResizeEvent>
+#include <QShowEvent>
+#include <QHideEvent>
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 #include <algorithm>
 #include <vector>
+#include <mutex>
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("streamforge-vertical", "en-US")
@@ -31,9 +39,148 @@ QComboBox *scenePicker = nullptr;
 QComboBox *sourcePicker = nullptr;
 QListWidget *sceneSources = nullptr;
 QLabel *canvasInfo = nullptr;
+class VerticalPreview;
+VerticalPreview *verticalPreview = nullptr;
 std::vector<VerticalScene> verticalScenes;
 
 void refreshSourcePicker();
+
+class VerticalPreview final : public QWidget {
+public:
+    explicit VerticalPreview(QWidget *parent = nullptr) : QWidget(parent)
+    {
+        setAttribute(Qt::WA_NativeWindow);
+        setAttribute(Qt::WA_PaintOnScreen);
+        setMinimumSize(180, 320);
+        setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+        setStyleSheet("background: #171a20; border: 1px solid #343b46;");
+    }
+
+    ~VerticalPreview() override
+    {
+        destroyDisplay();
+        clearScene();
+    }
+
+    void setSceneSource(obs_source_t *source)
+    {
+        std::lock_guard<std::mutex> lock(sourceMutex);
+        if (sceneSource == source)
+            return;
+        if (sceneSource) {
+            obs_source_dec_showing(sceneSource);
+            obs_source_release(sceneSource);
+        }
+        sceneSource = source ? obs_source_get_ref(source) : nullptr;
+        if (sceneSource)
+            obs_source_inc_showing(sceneSource);
+    }
+
+protected:
+    QPaintEngine *paintEngine() const override { return nullptr; }
+
+    void showEvent(QShowEvent *event) override
+    {
+        QWidget::showEvent(event);
+        createDisplay();
+    }
+
+    void hideEvent(QHideEvent *event) override
+    {
+        destroyDisplay();
+        QWidget::hideEvent(event);
+    }
+
+    void resizeEvent(QResizeEvent *event) override
+    {
+        QWidget::resizeEvent(event);
+        if (display)
+            obs_display_resize(display, static_cast<uint32_t>(std::max(1, event->size().width())),
+                               static_cast<uint32_t>(std::max(1, event->size().height())));
+    }
+
+private:
+    obs_display_t *display = nullptr;
+    obs_source_t *sceneSource = nullptr;
+    std::mutex sourceMutex;
+
+    static void drawPreview(void *param, uint32_t cx, uint32_t cy)
+    {
+        auto *self = static_cast<VerticalPreview *>(param);
+        obs_source_t *source = nullptr;
+        {
+            std::lock_guard<std::mutex> lock(self->sourceMutex);
+            source = self->sceneSource ? obs_source_get_ref(self->sceneSource) : nullptr;
+        }
+
+        if (!source || cx == 0 || cy == 0) {
+            if (source)
+                obs_source_release(source);
+            return;
+        }
+
+        const uint32_t sourceWidth = obs_source_get_width(source);
+        const uint32_t sourceHeight = obs_source_get_height(source);
+        if (sourceWidth > 0 && sourceHeight > 0) {
+            const float scale = std::min(static_cast<float>(cx) / sourceWidth,
+                                         static_cast<float>(cy) / sourceHeight);
+            const uint32_t viewWidth = static_cast<uint32_t>(sourceWidth * scale);
+            const uint32_t viewHeight = static_cast<uint32_t>(sourceHeight * scale);
+            const int offsetX = static_cast<int>((cx - viewWidth) / 2);
+            const int offsetY = static_cast<int>((cy - viewHeight) / 2);
+
+            gs_set_viewport(offsetX, offsetY, static_cast<int>(viewWidth), static_cast<int>(viewHeight));
+            gs_ortho(0.0f, static_cast<float>(sourceWidth), 0.0f,
+                     static_cast<float>(sourceHeight), -100.0f, 100.0f);
+            obs_source_video_render(source);
+        }
+        obs_source_release(source);
+    }
+
+    void createDisplay()
+    {
+#ifdef _WIN32
+        if (display || !isVisible())
+            return;
+        const WId nativeId = winId();
+        RECT rect{};
+        GetClientRect(reinterpret_cast<HWND>(nativeId), &rect);
+
+        gs_init_data init{};
+        init.window.hwnd = reinterpret_cast<HWND>(nativeId);
+        init.cx = static_cast<uint32_t>(std::max<LONG>(1, rect.right - rect.left));
+        init.cy = static_cast<uint32_t>(std::max<LONG>(1, rect.bottom - rect.top));
+        init.num_backbuffers = 2;
+        init.format = GS_RGBA;
+        init.zsformat = GS_ZS_NONE;
+        init.adapter = 0;
+
+        display = obs_display_create(&init, 0x20242A);
+        if (display)
+            obs_display_add_draw_callback(display, drawPreview, this);
+#endif
+    }
+
+    void destroyDisplay()
+    {
+        if (!display)
+            return;
+        obs_display_remove_draw_callback(display, drawPreview, this);
+        obs_display_destroy(display);
+        display = nullptr;
+    }
+
+    void clearScene()
+    {
+        std::lock_guard<std::mutex> lock(sourceMutex);
+        if (sceneSource) {
+            obs_source_dec_showing(sceneSource);
+            obs_source_release(sceneSource);
+            sceneSource = nullptr;
+        }
+    }
+};
+
 
 void frontendEventCallback(obs_frontend_event event, void *)
 {
@@ -120,6 +267,8 @@ void createVerticalScene()
     verticalScenes.push_back({sceneSource, scene, name});
     scenePicker->addItem(name);
     scenePicker->setCurrentIndex(scenePicker->count() - 1);
+    if (verticalPreview)
+        verticalPreview->setSceneSource(sceneSource);
     refreshSceneSourceList();
 }
 
@@ -132,6 +281,8 @@ void deleteVerticalScene()
     obs_source_t *sceneSource = verticalScenes[static_cast<size_t>(index)].source;
     if (sceneSource)
         obs_source_release(sceneSource);
+    if (verticalPreview && index == scenePicker->currentIndex())
+        verticalPreview->setSceneSource(nullptr);
     verticalScenes.erase(verticalScenes.begin() + index);
     scenePicker->removeItem(index);
     refreshSceneSourceList();
@@ -306,6 +457,10 @@ void buildDock()
     canvasInfo->setStyleSheet("color: #9aa4b2; padding: 4px 0;");
     root->addWidget(canvasInfo);
 
+    verticalPreview = new VerticalPreview(dock);
+    verticalPreview->setMinimumHeight(360);
+    root->addWidget(verticalPreview, 2);
+
     root->addWidget(new QLabel("Cenas verticais"));
     scenePicker = new QComboBox();
     root->addWidget(scenePicker);
@@ -359,7 +514,14 @@ void buildDock()
     QObject::connect(moveUp, &QPushButton::clicked, [] { moveSelectedSource(-1); });
     QObject::connect(moveDown, &QPushButton::clicked, [] { moveSelectedSource(1); });
     QObject::connect(removeSource, &QPushButton::clicked, removeSelectedSource);
-    QObject::connect(scenePicker, qOverload<int>(&QComboBox::currentIndexChanged), refreshSceneSourceList);
+    QObject::connect(scenePicker, qOverload<int>(&QComboBox::currentIndexChanged), [] {
+        refreshSceneSourceList();
+        const int index = scenePicker->currentIndex();
+        if (verticalPreview && index >= 0 && static_cast<size_t>(index) < verticalScenes.size())
+            verticalPreview->setSceneSource(verticalScenes[static_cast<size_t>(index)].source);
+        else if (verticalPreview)
+            verticalPreview->setSceneSource(nullptr);
+    });
 
     refreshSourcePicker();
     obs_frontend_add_event_callback(frontendEventCallback, nullptr);
@@ -381,7 +543,10 @@ bool obs_module_load(void)
 void obs_module_unload(void)
 {
     obs_frontend_remove_event_callback(frontendEventCallback, nullptr);
+    if (verticalPreview)
+        verticalPreview->setSceneSource(nullptr);
     obs_frontend_remove_dock("streamforge.vertical");
+    verticalPreview = nullptr;
     for (auto &entry : verticalScenes) {
         if (entry.source)
             obs_source_release(entry.source);
