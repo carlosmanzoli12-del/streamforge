@@ -1,29 +1,57 @@
+[CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)]
-    [string]$ObsSdkRoot,
+    [string]$ObsSdkRoot = $env:OBS_SDK_ROOT,
     [string]$BuildDirectory = "build",
-    [string]$Configuration = "Release"
+    [ValidateSet("Release", "RelWithDebInfo", "Debug")]
+    [string]$Configuration = "Release",
+    [string]$Generator = "Visual Studio 17 2022"
 )
 
 $ErrorActionPreference = "Stop"
 
-if (-not (Get-Command cmake -ErrorAction SilentlyContinue)) { throw "CMake não foi encontrado no PATH." }
-if (-not (Get-Command makensis -ErrorAction SilentlyContinue)) { throw "NSIS (makensis) não foi encontrado. Instale o NSIS e adicione a pasta ao PATH." }
-if (-not (Test-Path $ObsSdkRoot)) { throw "Diretório do SDK do OBS não encontrado: $ObsSdkRoot" }
+function Require-Command([string]$Name) {
+    if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
+        throw "Ferramenta obrigatória não encontrada no PATH: $Name"
+    }
+}
 
-$root = Resolve-Path (Join-Path $PSScriptRoot "..")
-$buildPath = Join-Path $root $BuildDirectory
+Require-Command "cmake"
+Require-Command "cpack"
+Require-Command "makensis"
 
-cmake -S $root -B $buildPath -A x64 -DSTREAMFORGE_BUILD_OBS_PLUGIN=ON -DSTREAMFORGE_BUILD_INSTALLER=ON "-DCMAKE_PREFIX_PATH=$ObsSdkRoot"
+if ([string]::IsNullOrWhiteSpace($ObsSdkRoot)) {
+    throw "Informe -ObsSdkRoot ou defina OBS_SDK_ROOT com o SDK/dependências de desenvolvimento do OBS 30.0.2."
+}
+if (-not (Test-Path $ObsSdkRoot -PathType Container)) {
+    throw "Pasta do SDK não encontrada: $ObsSdkRoot"
+}
+
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+$buildPath = Join-Path $repoRoot $BuildDirectory
+$sdkPath = (Resolve-Path $ObsSdkRoot).Path
+
+Write-Host "Configurando StreamForge Vertical..."
+Write-Host "SDK: $sdkPath"
+Write-Host "Build: $buildPath"
+
+cmake -S $repoRoot -B $buildPath -G $Generator -A x64 "-DCMAKE_PREFIX_PATH=$sdkPath" -DSTREAMFORGE_BUILD_OBS_PLUGIN=ON -DSTREAMFORGE_BUILD_INSTALLER=ON
 if ($LASTEXITCODE -ne 0) { throw "Falha na configuração CMake." }
 
-cmake --build $buildPath --config $Configuration
-if ($LASTEXITCODE -ne 0) { throw "Falha na compilação do plugin." }
+cmake --build $buildPath --config $Configuration --parallel
+if ($LASTEXITCODE -ne 0) { throw "Falha ao compilar o plugin." }
 
 Push-Location $buildPath
 try {
-    cpack -C $Configuration -G NSIS
+    cpack --config CPackConfig.cmake -C $Configuration -G NSIS
     if ($LASTEXITCODE -ne 0) { throw "Falha ao gerar o instalador NSIS." }
-} finally { Pop-Location }
+}
+finally {
+    Pop-Location
+}
 
-Write-Host "Build e empacotamento concluídos. Verifique o instalador gerado em: $buildPath"
+$installers = Get-ChildItem -Path $buildPath -Filter "*.exe" -File | Where-Object { $_.Name -match "StreamForge" }
+if (-not $installers) { throw "Nenhum instalador StreamForge*.exe foi encontrado em $buildPath." }
+
+Write-Host ""
+Write-Host "Instalador gerado:"
+$installers | ForEach-Object { Write-Host $_.FullName }
