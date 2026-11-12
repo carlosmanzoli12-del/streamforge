@@ -82,8 +82,10 @@ void refreshSceneSourceList()
     obs_scene_enum_items(scene, [](obs_scene_t *, obs_sceneitem_t *item, void *param) {
         auto *list = static_cast<QListWidget *>(param);
         obs_source_t *source = obs_sceneitem_get_source(item);
-        if (source)
-            list->addItem(QString::fromUtf8(obs_source_get_name(source)));
+        if (source) {
+            const QString name = QString::fromUtf8(obs_source_get_name(source));
+            list->addItem(obs_sceneitem_visible(item) ? name : QString("[Oculta] %1").arg(name));
+        }
         return true;
     }, sceneSources);
 }
@@ -188,6 +190,7 @@ void duplicateSelectedSource()
         obs_sceneitem_get_scale(original, &scale);
         obs_sceneitem_set_pos(copy, &position);
         obs_sceneitem_set_scale(copy, &scale);
+        obs_sceneitem_set_alignment(copy, obs_sceneitem_get_alignment(original));
         obs_sceneitem_set_rot(copy, obs_sceneitem_get_rot(original));
         obs_sceneitem_set_visible(copy, obs_sceneitem_visible(original));
     }
@@ -343,7 +346,7 @@ void buildDock()
     QObject::connect(moveUp, &QPushButton::clicked, [] { moveSelectedSource(-1); });
     QObject::connect(moveDown, &QPushButton::clicked, [] { moveSelectedSource(1); });
     QObject::connect(removeSource, &QPushButton::clicked, removeSelectedSource);
-    QObject::connect(scenePicker, &QComboBox::currentIndexChanged, refreshSceneSourceList);
+    QObject::connect(scenePicker, qOverload<int>(&QComboBox::currentIndexChanged), refreshSceneSourceList);
 
     refreshSourcePicker();
     obs_frontend_add_event_callback(frontendEventCallback, nullptr);
