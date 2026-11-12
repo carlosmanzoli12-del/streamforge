@@ -7,6 +7,8 @@
 #include <QLabel>
 #include <QListWidget>
 #include <QMessageBox>
+#include <QInputDialog>
+#include <QLineEdit>
 #include <QPushButton>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -148,6 +150,96 @@ void removeSelectedSource()
     refreshSceneSourceList();
 }
 
+obs_sceneitem_t *sceneItemAt(obs_scene_t *scene, int targetIndex)
+{
+    struct FindContext {
+        int target;
+        int index = 0;
+        obs_sceneitem_t *found = nullptr;
+    } context{targetIndex};
+
+    obs_scene_enum_items(scene, [](obs_scene_t *, obs_sceneitem_t *item, void *param) {
+        auto *ctx = static_cast<FindContext *>(param);
+        if (ctx->index++ == ctx->target) {
+            ctx->found = item;
+            return false;
+        }
+        return true;
+    }, &context);
+    return context.found;
+}
+
+void duplicateSelectedSource()
+{
+    obs_scene_t *scene = currentScene();
+    const int row = sceneSources ? sceneSources->currentRow() : -1;
+    obs_sceneitem_t *original = scene ? sceneItemAt(scene, row) : nullptr;
+    if (!original)
+        return;
+
+    obs_source_t *source = obs_sceneitem_get_source(original);
+    if (!source)
+        return;
+
+    obs_sceneitem_t *copy = obs_scene_add(scene, source);
+    if (copy) {
+        vec2 position, scale;
+        obs_sceneitem_get_pos(original, &position);
+        obs_sceneitem_get_scale(original, &scale);
+        obs_sceneitem_set_pos(copy, &position);
+        obs_sceneitem_set_scale(copy, &scale);
+        obs_sceneitem_set_rot(copy, obs_sceneitem_get_rot(original));
+        obs_sceneitem_set_visible(copy, obs_sceneitem_visible(original));
+    }
+    refreshSceneSourceList();
+    if (sceneSources)
+        sceneSources->setCurrentRow(sceneSources->count() - 1);
+}
+
+void toggleSelectedSourceVisibility()
+{
+    obs_scene_t *scene = currentScene();
+    const int row = sceneSources ? sceneSources->currentRow() : -1;
+    obs_sceneitem_t *item = scene ? sceneItemAt(scene, row) : nullptr;
+    if (!item)
+        return;
+    obs_sceneitem_set_visible(item, !obs_sceneitem_visible(item));
+    refreshSceneSourceList();
+    if (sceneSources)
+        sceneSources->setCurrentRow(row);
+}
+
+void moveSelectedSource(int direction)
+{
+    obs_scene_t *scene = currentScene();
+    const int row = sceneSources ? sceneSources->currentRow() : -1;
+    obs_sceneitem_t *item = scene ? sceneItemAt(scene, row) : nullptr;
+    if (!item)
+        return;
+    obs_sceneitem_set_order(item, direction < 0 ? OBS_ORDER_MOVE_UP : OBS_ORDER_MOVE_DOWN);
+    refreshSceneSourceList();
+    if (sceneSources)
+        sceneSources->setCurrentRow(std::max(0, row + direction));
+}
+
+void renameVerticalScene()
+{
+    const int index = scenePicker ? scenePicker->currentIndex() : -1;
+    if (index < 0 || static_cast<size_t>(index) >= verticalScenes.size())
+        return;
+    bool accepted = false;
+    const QString name = QInputDialog::getText(
+        dock, "Renomear cena vertical", "Nome da cena:",
+        QLineEdit::Normal, verticalScenes[static_cast<size_t>(index)].name, &accepted).trimmed();
+    if (!accepted || name.isEmpty())
+        return;
+    obs_source_t *sceneSource = obs_scene_get_source(verticalScenes[static_cast<size_t>(index)].scene);
+    if (sceneSource)
+        obs_source_set_name(sceneSource, name.toUtf8().constData());
+    verticalScenes[static_cast<size_t>(index)].name = name;
+    scenePicker->setItemText(index, name);
+}
+
 void addSelectedSource()
 {
     obs_scene_t *scene = currentScene();
@@ -205,7 +297,9 @@ void buildDock()
     auto *sceneButtons = new QHBoxLayout();
     auto *newScene = new QPushButton("Nova cena");
     auto *removeScene = new QPushButton("Excluir");
+    auto *renameScene = new QPushButton("Renomear");
     sceneButtons->addWidget(newScene);
+    sceneButtons->addWidget(renameScene);
     sceneButtons->addWidget(removeScene);
     root->addLayout(sceneButtons);
 
@@ -218,17 +312,36 @@ void buildDock()
     root->addWidget(new QLabel("Fontes na cena"));
     sceneSources = new QListWidget();
     root->addWidget(sceneSources, 1);
+    auto *sourceActions = new QHBoxLayout();
+    auto *duplicateSource = new QPushButton("Duplicar");
+    auto *toggleVisibility = new QPushButton("Mostrar/ocultar");
+    sourceActions->addWidget(duplicateSource);
+    sourceActions->addWidget(toggleVisibility);
+    root->addLayout(sourceActions);
+
+    auto *orderActions = new QHBoxLayout();
+    auto *moveUp = new QPushButton("Subir camada");
+    auto *moveDown = new QPushButton("Descer camada");
+    orderActions->addWidget(moveUp);
+    orderActions->addWidget(moveDown);
+    root->addLayout(orderActions);
+
     auto *removeSource = new QPushButton("Remover fonte selecionada");
     root->addWidget(removeSource);
 
-    auto *note = new QLabel("As cenas verticais são independentes das cenas horizontais. A edição visual e a pré-visualização vertical serão adicionadas nas próximas etapas.");
+    auto *note = new QLabel("Gerencie cenas e camadas verticais de forma independente. A pré-visualização renderizada e a edição por arraste continuam no roadmap.");
     note->setWordWrap(true);
     note->setStyleSheet("color: #9aa4b2; padding-top: 8px;");
     root->addWidget(note);
 
     QObject::connect(newScene, &QPushButton::clicked, createVerticalScene);
     QObject::connect(removeScene, &QPushButton::clicked, deleteVerticalScene);
+    QObject::connect(renameScene, &QPushButton::clicked, renameVerticalScene);
     QObject::connect(addSource, &QPushButton::clicked, addSelectedSource);
+    QObject::connect(duplicateSource, &QPushButton::clicked, duplicateSelectedSource);
+    QObject::connect(toggleVisibility, &QPushButton::clicked, toggleSelectedSourceVisibility);
+    QObject::connect(moveUp, &QPushButton::clicked, [] { moveSelectedSource(-1); });
+    QObject::connect(moveDown, &QPushButton::clicked, [] { moveSelectedSource(1); });
     QObject::connect(removeSource, &QPushButton::clicked, removeSelectedSource);
     QObject::connect(scenePicker, &QComboBox::currentIndexChanged, refreshSceneSourceList);
 
